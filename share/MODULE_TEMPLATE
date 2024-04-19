@@ -1,0 +1,64 @@
+#%Module1.0
+#
+proc ModulesHelp { } {
+    global helpmsg
+    puts stderr "\t$helpmsg\n"
+}
+#
+set libName lib.tcl
+set strLen [string length [module-info name]]
+set libDir [string range $ModulesCurrentModulefile 0 end-$strLen]
+source $libDir$libName
+#
+# Program specific variables:
+# The program and version should correspond to the install path in /share/apps/binformatics
+# e.g. /share/apps/bioinformatics/blast/2.15.0
+#
+# The bin dir within that directory will be added to the path
+# If a gcc module also needs to be loaded, set "gccVer" to the version
+# to load (e.g. 10.1.0 for the module gcc/10.1.0)
+
+set base    /share/apps/bioinformatics
+set program PROGRAM
+set ver     VERSION
+set gccVer  GCCVER
+#
+module-whatis "System paths to run $program, $ver"
+#
+prepend-path PATH $base/$program/$ver/bin
+
+#
+if {[info exists gccVer]} {
+  module load gcc/$gccVer
+}
+#
+# Add other modules to load or variables to set here:
+
+#
+conflict bioinformatics/$program
+CheckForConflicts
+#
+
+# Help messages for bio program must contain:
+#   Purpose: name of the program and executables available
+#   Documentation: link to the developer's page
+# (optional sections)
+#   Hydra Specific Instructions: specific instructions for
+#   running on hydra. E.g. pe to use, link to an HPC wiki
+#   article, database locations.
+
+set helpmsg "
+Purpose
+-------
+This module loads the system paths and environmental variables for:
+$program, $ver
+
+The executables that you can now call are:
+EXECUTABLES
+
+
+Documentation
+-------------
+URL
+
+<- Last updated: DATE ->"

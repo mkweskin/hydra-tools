@@ -1,0 +1,43 @@
+# Source this in your .bashrc
+
+# pre-load my favorite modules
+module load module-verbose
+module load tools/mamba
+module load tools/local
+module load tools/scrubber
+
+# Aliases for job monitoring
+alias wqs="watch -n 7 qstat -u $USER"
+alias qs="qstat -u $USER"
+alias tp="top -u $USER"
+alias qr="qacct+ -show raw -j "
+
+#Preffered defaults for some programs:
+alias grep="grep --colour"
+alias lesss="less -S"
+
+# This will expand a directory that is defined by a variable with tab completion
+# See: https://askubuntu.com/questions/41891/bash-auto-complete-for-environment-variables
+shopt -s direxpand
+
+# My qrsh alias sets the variable PREVWD to dir where qrsh was called.
+# So, if PREVWD is set in a new shell, we should change to that directory
+alias qrsh='qrsh -v "PREVWD=$PWD"'
+if [ ! -z "$PREVWD" ]; then
+  cd "$PREVWD"
+fi
+
+# A system I use to go to a designated directory when a new shell starts
+# `mark` writes the current directory to a hidden file in the home directory.
+# If that file exists, a new interactive session goes to that directory.
+# (checks that $PREVWD isn't set which I use with qrsh)
+alias mark="pwd>~/.mark"
+if [ -f ~/.mark ]; then
+  INITDIR=`cat ~/.mark`
+  if [ -d $INITDIR ] && [ -z $PREVWD ]; then
+    echo "cd $INITDIR"
+    cd $INITDIR
+    rm ~/.mark
+  fi
+fi
+

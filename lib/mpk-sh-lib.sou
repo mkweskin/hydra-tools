@@ -1,0 +1,54 @@
+####
+# Utility functions
+####
+
+function checkfile {
+    # Check that the file given as the function parameter exists
+    # (Also, if a second parameter is given, that is executed. I use this to run the KillSem function)
+    ScriptLogging "Checking for file: $1" verbose
+    [ -s $1 ] || (ScriptLogging "ERROR: the expected file '$1' is missing. Aborting execution" && exit 1)
+}
+
+function checkdir {
+    # Check that the given value is a directory that exists
+    ScriptLogging "Checking for dir: $1" verbose
+    [ ! -z $1 ] && [ -d $1 ] || (ScriptLogging "ERROR: the expected directory '$1' is missing. Aborting execution." && exit 1)
+}
+
+function checkwhich {
+    # Check that the given command name is found in the current PATH (uses `which`)
+    ScriptLogging "Checking the command $1 is available with 'which'" verbose
+    [ ! -z $1 ] && which $1 >/dev/null 2>/dev/null || (ScriptLogging "ERROR: the required executable '$1' is not availble. Make sure this dependency is installed. Aborting execution." && exit 1)
+}
+
+function checkvar {
+    # takes a variable NAME as a parameter and evaluates if there's a
+    # VALUE for that variable.
+    [ ! -z $1 ] && NAME=$1 && VALUE=$(eval "echo \$${1}")
+    ScriptLogging "Checking \$$NAME, which has the value '$VALUE'" verbose
+    [ ! -z "$VALUE" ] || (ScriptLogging "ERROR: The variable \$${NAME} has not been set. Aborting execution." && exit 1)
+}
+
+function ScriptLogging {
+    # $1: message to be logged
+    # $2: what level message this is (verbose if this should only be output if verbose mode is enabled)
+    # Uses $LOG variable, if set, to output to a logfile, otherwise it outputs to stdout only
+    local DATE=$(date +%Y-%m-%d\ %H:%M:%S)
+    LOGMSGLEVEL=$(echo $2 | tr '[:upper:]' '[:lower:]')
+    if [ -z $LOGMSGLEVEL ] || [ "$LOGLEVEL" = "$LOGMSGLEVEL" ]; then
+        echo "$DATE" " $1" | tee -a $LOG
+    fi
+}
+
+function AbsFromRel {
+    # Takes a variable NAME as input, replaces that variable value with the absolute path
+    # NOTE: this function doesn't test that the file exists.
+    local NAME=$1
+    local VALUE=$(eval "echo \$${1}")
+    if [ ! -z $VALUE ]; then
+        local ABSPATH=$(realpath $VALUE)
+        ScriptLogging "AbsFromRel: Setting $NAME from $VALUE to $ABSPATH" verbose
+        eval "$NAME=$ABSPATH"
+    fi
+}
+
