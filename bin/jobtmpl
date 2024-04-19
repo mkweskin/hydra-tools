@@ -1,1 +1,146 @@
-/H6_home/kweskinm/bin/jobtmpl
+#!/bin/sh
+# Quickly create template job files for hydra
+# Created by Matthew Kweskin
+# Feel free to copy, reuse, modify
+
+# Print warning
+echo "WARNING: this is not an officially support Hydra script, use at your own risk"
+
+# Name: used for job file name, -N and -o flags in qsub
+while [[ -z ${name} ]]; do
+  echo -n "Job name: "
+  read name
+  if [[ -f ${name}.job ]]; then
+    echo -n "\"${name}.job\" exists, overwrite? y/[n] "
+    read overwrite
+    if [[ ! ${overwrite} == y && ! ${overwrite} == Y ]]; then
+      echo cancelling
+      exit 1
+    fi
+  fi
+done
+
+# Length: Used to determine queue
+while [[ -z ${length} ]]; do
+  echo -n "length ([s],m,l,u): "
+  read length
+  if [[ -z ${length} ]]; then
+    length="s"
+    echo "${length}"
+  fi
+  if [[ ! ${length} == "s" && ! ${length} == "m" && ! ${length} == "l" && ! ${length} == "u" ]]; then
+    echo "invalid option \"${length}\""
+    length=""
+  fi
+done
+
+# Memory: Used to determine queue and for -l in qsub
+while [[ -z ${mem} ]]; do
+  echo -n "Memory (in GB) [2]: "
+  read mem
+  if [[ -z ${mem} ]]; then
+    mem=2
+    echo "${mem}"
+  fi
+done
+
+# CPUs: used in -pe flag
+echo -n "CPUs [1]: "
+read cpu
+if [[ -z ${cpu} ]]; then
+  cpu=1
+  echo "${cpu}"
+fi
+
+# Parallel Env: used in -pe flag
+if [[ ${cpu} > 1 ]]; then
+  while [[ -z ${pe} ]]; do
+    echo -n "PE to use ([mthread], orte, mpich): "
+    read pe
+    if [[ -z ${pe} ]]; then
+      pe=mthread
+      echo "${pe}"
+    fi
+    if [[ ! ${pe} == "mthread" && ! ${pe} == "orte" && ! ${pe} == "mpich" ]]; then
+      echo "invalid option \"${pe}\""
+      pe=""
+    fi
+  done
+fi
+
+# Line for the log file to echo the hosts, if this is an mpi job
+if [[ ${pe} == "orte" ]]; then
+    machines="cat \$PE_HOSTFILE"
+fi
+if [[ ${pe} == "mpich" ]]; then
+    machines="sort \$TMPDIR/machines | uniq -c"
+fi
+
+
+
+# Module name
+echo -n "Module name (optional, \"bio/\" will be prefixed): "
+read module
+if [[ ! -z ${module} ]]; then
+  moduleline="module load bio/${module}"
+else
+  echo "no module"
+fi
+
+# Build memory line (will add "himem" later if needed)
+memline="#\$ -l mres=$((cpu * mem))G,h_data=${mem}G,h_vmem=${mem}G"
+
+# Determine queue
+if [[ ${mem} -gt 8 ]]; then
+  queuetype=M
+  memline="${memline},himem"
+else
+  queuetype=C
+fi
+queue=${length}Th${queuetype}.q
+
+# Create pe line (if needed)
+if [[ ! -z ${pe} ]]; then
+  peline="#$ -pe ${pe} ${cpu}"
+  newline="
+"
+fi
+
+cat <<EOF >"${name}.job"
+# /bin/sh
+# ----------------Parameters---------------------- #
+#\$ -S /bin/sh${newline}${peline}
+#\$ -q ${queue}
+${memline}
+#\$ -cwd
+#\$ -j y
+#\$ -N ${name}
+#\$ -o ${name}.log
+#
+# ----------------Modules------------------------- #
+${moduleline}
+#
+# ----------------Your Commands------------------- #
+#
+echo + \`date\` job \$JOB_NAME started in \$QUEUE with jobID=\$JOB_ID on \$HOSTNAME
+echo + NSLOTS = \$NSLOTS
+${machines}
+#
+
+#
+echo = \`date\` job \$JOB_NAME done
+EOF
+
+echo
+echo "Queue: ${queue}"
+echo "Memory: ${memline}"
+if [[ ! -z ${peline} ]]; then
+  echo "PE: ${peline}"
+fi
+echo
+echo "---------Contents of ${name}.job---------"
+echo
+cat "${name}.job"
+
+echo
+echo "Next run:  vi ${name}.job"
