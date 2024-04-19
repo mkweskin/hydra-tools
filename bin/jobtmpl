@@ -3,22 +3,33 @@
 # Created by Matthew Kweskin
 # Feel free to copy, reuse, modify
 
-# Print warning
-echo "WARNING: this is not an officially support Hydra script, use at your own risk"
+# Convert text to lowercase
+function lower {
+  echo $1 | tr '[:upper:]' '[:lower:]'
+}
 
 # Name: used for job file name, -N and -o flags in qsub
-while [[ -z ${name} ]]; do
-  echo -n "Job name: "
-  read name
-  if [[ -f ${name}.job ]]; then
+# TODO: check it starts with a letter
+# The job name can be given as an argument
+
+if [ ! -z $1 ];then 
+  name=$1
+else
+  while [ -z $name ]; do
+    echo -n "Job name: "
+    read name
+  done
+fi
+
+if [[ -f ${name}.job ]]; then
     echo -n "\"${name}.job\" exists, overwrite? y/[n] "
     read overwrite
-    if [[ ! ${overwrite} == y && ! ${overwrite} == Y ]]; then
+    overwrite=$(lower $overwrite)
+    if [[ ! ${overwrite} == y ]]; then
       echo cancelling
       exit 1
     fi
-  fi
-done
+fi
 
 # Length: Used to determine queue
 while [[ -z ${length} ]]; do
@@ -76,40 +87,48 @@ if [[ ${pe} == "mpich" ]]; then
     machines="sort \$TMPDIR/machines | uniq -c"
 fi
 
-
+# Module dir
+echo -n "Module category [bio]: "
+read moddir
+if [[ -z ${moddir} ]]; then
+  moddir=bio
+  echo "${moddir}"
+fi
 
 # Module name
-echo -n "Module name (optional, \"bio/\" will be prefixed): "
+echo -n "Module name (optional, \"$moddir/\" will be prefixed): "
 read module
+# TODO: add testing if the module exists
 if [[ ! -z ${module} ]]; then
-  moduleline="module load bio/${module}"
+  moduleline="module load ${moddir}/${module}"
 else
   echo "no module"
 fi
 
-# Build memory line (will add "himem" later if needed)
-memline="#\$ -l mres=$((cpu * mem))G,h_data=${mem}G,h_vmem=${mem}G"
-
-# Determine queue
+# Determine queue and then set h_vmem to 8x h_data
 if [[ ${mem} -gt 8 ]]; then
   queuetype=M
-  memline="${memline},himem"
+  vmem=$((mem * 2))
+  memlinehimem=",himem"
 else
   queuetype=C
+  vmem=$((mem * 8))
 fi
 queue=${length}Th${queuetype}.q
 
+# Build memory line (will add "himem" later if needed)
+memline="#\$ -l mres=$((cpu * mem))G,h_data=${mem}G,h_vmem=${vmem}G${memlinehimem}"
+
 # Create pe line (if needed)
 if [[ ! -z ${pe} ]]; then
-  peline="#$ -pe ${pe} ${cpu}"
-  newline="
-"
+  peline="
+#$ -pe ${pe} ${cpu}"
 fi
 
 cat <<EOF >"${name}.job"
 # /bin/sh
 # ----------------Parameters---------------------- #
-#\$ -S /bin/sh${newline}${peline}
+#\$ -S /bin/sh${peline}
 #\$ -q ${queue}
 ${memline}
 #\$ -cwd
@@ -118,6 +137,7 @@ ${memline}
 #\$ -o ${name}.log
 #
 # ----------------Modules------------------------- #
+module load module-verbose
 ${moduleline}
 #
 # ----------------Your Commands------------------- #
@@ -126,6 +146,8 @@ echo + \`date\` job \$JOB_NAME started in \$QUEUE with jobID=\$JOB_ID on \$HOSTN
 echo + NSLOTS = \$NSLOTS
 ${machines}
 #
+
+# Type your commands here
 
 #
 echo = \`date\` job \$JOB_NAME done
@@ -143,4 +165,5 @@ echo
 cat "${name}.job"
 
 echo
-echo "Next run:  vi ${name}.job"
+echo "Next run:  nano ${name}.job or "
+echo "           vi   ${name}.job"
