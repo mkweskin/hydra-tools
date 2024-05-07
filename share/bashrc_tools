@@ -1,10 +1,9 @@
 # Source this in your .bashrc
 
 # pre-load my favorite modules
-module load module-verbose
-module load tools/mamba
 module load tools/local
 module load tools/scrubber
+module load module-verbose
 
 # Aliases for job monitoring
 alias wqs="watch -n 7 qstat -u $USER"
@@ -30,14 +29,5 @@ fi
 # A system I use to go to a designated directory when a new shell starts
 # `mark` writes the current directory to a hidden file in the home directory.
 # If that file exists, a new interactive session goes to that directory.
-# (checks that $PREVWD isn't set which I use with qrsh)
 alias mark="pwd>~/.mark"
-if [ -f ~/.mark ]; then
-  INITDIR=`cat ~/.mark`
-  if [ -d $INITDIR ] && [ -z $PREVWD ]; then
-    echo "cd $INITDIR"
-    cd $INITDIR
-    rm ~/.mark
-  fi
-fi
-
+[ -f ~/.mark ] && source ~/hydra-tools/bin/cdmark

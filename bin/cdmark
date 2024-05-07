@@ -1,0 +1,9 @@
+#!/bin/sh
+if [ -f ~/.mark ]; then
+  INITDIR=$(cat ~/.mark)
+  if [ -d $INITDIR ]; then
+    echo "cd $INITDIR"
+    cd $INITDIR
+    rm ~/.mark
+  fi
+fi
