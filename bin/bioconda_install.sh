@@ -2,6 +2,7 @@
 HYDRA_TOOLS_BASE=~/hydra-tools
 LIB=$HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou
 source $LIB || lib_error=TRUE
+install_base=/share/apps/bioinformatics
 
 if [ ! -z $lib_error ]; then
   echo "ERROR: could not find $LIB. This file contains required functions needed for this script."
