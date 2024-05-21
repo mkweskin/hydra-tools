@@ -131,6 +131,18 @@ checkfile $MODFILE || exit 1
 chgrp bioinformatics $MODFILE
 chmod g+rw,a+r $MODFILE
 
+if [ ! -e $MODDIR/$PROGRAM/.version ]; then
+  ScriptLogging ".version file does not already exist, creating it"
+  cat << EOF >$MODDIR/$PROGRAM/.version
+#%Module1.0
+set ModulesVersion "$VERSION"
+EOF
+  chgrp bioinformatics $MODDIR/$PROGRAM/.version
+  chmod g+rw,a+r $MODDIR/$PROGRAM/.version
+fi
+
+
+
 ScriptLogging "DONE: The new module is: $BASEMOD/$PROGRAM/$VERSION"
 ScriptLogging "      module load $BASEMOD/$PROGRAM/$VERSION"
 ScriptLogging "      module help $BASEMOD/$PROGRAM/$VERSION"
