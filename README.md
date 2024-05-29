@@ -54,3 +54,8 @@ chmod -R a+r,g+w $DIR
 echo "  Changing executables to a+x..."
 find $DIR -executable -exec chmod a+x {} \;
 ```
+
+## Module files
+
+- If a packages uses numpy, add `module load tools/mthread-numpy` to the program's module file. This sets environmental variables such that numpy with use, at most, the number of CPUs requested with `qsub`. Without this, the numpy may use all available CPUs.
+
