@@ -31,3 +31,6 @@ fi
 # If that file exists, a new interactive session goes to that directory.
 alias mark="pwd>~/.mark"
 [ -f ~/.mark ] && source ~/hydra-tools/bin/cdmark
+
+# `tree` is using basic ascii characters without this option added
+export TREE_CHARSET=utf8

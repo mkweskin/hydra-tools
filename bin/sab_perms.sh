@@ -14,7 +14,7 @@ echo "+ Starting $1"
 echo "  Changing group to $GROUP..."
 chgrp -R $GROUP $1
 echo "  Changing perms to a+r,g+w..."
-chmod -R a+r,g+w $1
+chmod -R a+r,gu+w $1
 echo "  Changing executables to a+x..."
 find $1 -executable -exec chmod a+x {} \;
 
