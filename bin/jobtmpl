@@ -1,130 +1,143 @@
 #!/bin/sh
-# Quickly create template job files for hydra
-# Created by Matthew Kweskin
+# Quickly create template job files for Hydra
+# Created by Matthew Kweskin with enhancement from ChatGPT-4 via MS Copilot
 # Feel free to copy, reuse, modify
 
 # Convert text to lowercase
-function lower {
-  echo $1 | tr '[:upper:]' '[:lower:]'
+lower() {
+  echo "$1" | tr '[:upper:]' '[:lower:]'
 }
 
-# Name: used for job file name, -N and -o flags in qsub
-# TODO: check it starts with a letter
-# The job name can be given as an argument
+# Usage function
+usage() {
+  echo "Usage: $0 [-n name] [-l length] [-m mem] [-c cpu] [-p pe] [-M module]"
+  echo "  -n name: Job name (must start with a letter and contain only alphanumeric characters, hyphens, and underscores)"
+  echo "  -l length: Job length (s, m, l, u)"
+  echo "  -m mem: Memory in GB"
+  echo "  -c cpu: Number of CPUs"
+  echo "  -p pe: Parallel environment (mthread, orte, mpich)"
+  echo "  -M module: Module name"
+  exit 1
+}
 
-if [ ! -z $1 ];then 
-  name=$1
-else
-  while [ -z $name ]; do
-    echo -n "Job name: "
-    read name
-  done
-fi
-
-if [[ -f ${name}.job ]]; then
-    echo -n "\"${name}.job\" exists, overwrite? y/[n] "
-    read overwrite
-    overwrite=$(lower $overwrite)
-    if [[ ! ${overwrite} == y ]]; then
-      echo cancelling
-      exit 1
-    fi
-fi
-
-# Length: Used to determine queue
-while [[ -z ${length} ]]; do
-  echo -n "length ([s],m,l,u): "
-  read length
-  if [[ -z ${length} ]]; then
-    length="s"
-    echo "${length}"
-  fi
-  if [[ ! ${length} == "s" && ! ${length} == "m" && ! ${length} == "l" && ! ${length} == "u" ]]; then
-    echo "invalid option \"${length}\""
-    length=""
-  fi
+# Parse command-line arguments
+while getopts "n:l:m:c:p:M:h" opt; do
+  case $opt in
+    n) name="$OPTARG" ;;
+    l) length="$OPTARG" ;;
+    m) mem="$OPTARG" ;;
+    c) cpu="$OPTARG" ;;
+    p) pe="$OPTARG" ;;
+    M) module="$OPTARG" ;;
+    h) usage ;;
+    \?) echo "Invalid option: -$OPTARG" >&2; usage ;;
+    :) echo "Option -$OPTARG requires an argument." >&2; usage ;;
+  esac
 done
 
-# Memory: Used to determine queue and for -l in qsub
-while [[ -z ${mem} ]]; do
+# Validate job name
+while [ -z "$name" ] || ! echo "$name" | grep -Eq '^[a-zA-Z][a-zA-Z0-9_-]*$'; do
+  if [ -n "$name" ]; then
+    echo "Invalid job name. Must start with a letter and contain only alphanumeric characters, hyphens, and underscores."
+  fi
+  echo -n "Job name: "
+  read -r name
+done
+
+# Check if job file already exists
+if [ -f "${name}.job" ]; then
+  echo -n "\"${name}.job\" exists, overwrite? y/[n] "
+  read -r overwrite
+  overwrite=$(lower "$overwrite")
+  if [ "$overwrite" != "y" ]; then
+    echo "Cancelling"
+    exit 1
+  fi
+fi
+
+# Validate length
+while [ -z "$length" ] || ! echo "$length" | grep -Eq '^[smlu]$'; do
+  if [ -n "$length" ]; then
+    echo "Invalid length. Must be one of [s, m, l, u]."
+  fi
+  echo -n "Length ([s],m,l,u): "
+  read -r length
+  [ -z "$length" ] && length="s" && echo "$length"
+done
+
+# Validate memory
+while [ -z "$mem" ] || ! echo "$mem" | grep -Eq '^[0-9]+(\.[0-9]+)?$'; do
+  if [ -n "$mem" ]; then
+    echo "Invalid memory. Must be a positive number."
+  fi
   echo -n "Memory (in GB) [2]: "
-  read mem
-  if [[ -z ${mem} ]]; then
-    mem=2
-    echo "${mem}"
-  fi
+  read -r mem
+  [ -z "$mem" ] && mem=2 && echo "$mem"
 done
 
-# CPUs: used in -pe flag
-echo -n "CPUs [1]: "
-read cpu
-if [[ -z ${cpu} ]]; then
-  cpu=1
-  echo "${cpu}"
-fi
+# Validate CPUs
+while [ -z "$cpu" ] || ! echo "$cpu" | grep -Eq '^[0-9]+$'; do
+  if [ -n "$cpu" ]; then
+    echo "Invalid CPU count. Must be a positive integer."
+  fi
+  echo -n "CPUs [1]: "
+  read -r cpu
+  [ -z "$cpu" ] && cpu=1 && echo "$cpu"
+done
 
-# Parallel Env: used in -pe flag
-if [[ ${cpu} > 1 ]]; then
-  while [[ -z ${pe} ]]; do
+# Validate parallel environment
+if [ "$cpu" -gt 1 ]; then
+  while [ -z "$pe" ] || ! echo "$pe" | grep -Eq '^(mthread|orte|mpich)$'; do
+    if [ -n "$pe" ]; then
+      echo "Invalid parallel environment. Must be one of [mthread, orte, mpich]."
+    fi
     echo -n "PE to use ([mthread], orte, mpich): "
-    read pe
-    if [[ -z ${pe} ]]; then
-      pe=mthread
-      echo "${pe}"
-    fi
-    if [[ ! ${pe} == "mthread" && ! ${pe} == "orte" && ! ${pe} == "mpich" ]]; then
-      echo "invalid option \"${pe}\""
-      pe=""
-    fi
+    read -r pe
+    [ -z "$pe" ] && pe="mthread" && echo "$pe"
   done
 fi
 
-# Line for the log file to echo the hosts, if this is an mpi job
-if [[ ${pe} == "orte" ]]; then
-    machines="cat \$PE_HOSTFILE"
-fi
-if [[ ${pe} == "mpich" ]]; then
-    machines="sort \$TMPDIR/machines | uniq -c"
-fi
-
-# Module dir
-echo -n "Module category [bio]: "
-read moddir
-if [[ -z ${moddir} ]]; then
-  moddir=bio
-  echo "${moddir}"
-fi
+# Line for the log file to echo the hosts, if this is an MPI job
+case "$pe" in
+  orte) machines="cat \$PE_HOSTFILE" ;;
+  mpich) machines="sort \$TMPDIR/machines | uniq -c" ;;
+esac
 
 # Module name
-echo -n "Module name (optional, \"$moddir/\" will be prefixed): "
-read module
-# TODO: add testing if the module exists
-if [[ ! -z ${module} ]]; then
-  moduleline="module load ${moddir}/${module}"
+while [ -n "$module" ] && ! module avail "${module}" 2>&1 | grep -q "${module}"; do
+  echo "Module ${module} does not exist."
+  echo -n "Module name (optional, e.g. bio/blast): "
+  read -r module
+done
+
+# Set module line if module is provided
+if [ -n "$module" ]; then
+  moduleline="module load ${module}"
 else
-  echo "no module"
+  echo "No module"
 fi
 
 # Determine queue and then set h_vmem to 8x h_data
-if [[ ${mem} -gt 8 ]]; then
-  queuetype=M
+if [ "$mem" -gt 8 ]; then
+  queuetype="M"
   vmem=$((mem * 2))
   memlinehimem=",himem"
 else
-  queuetype=C
+  queuetype="C"
   vmem=$((mem * 8))
 fi
-queue=${length}Th${queuetype}.q
+queue="${length}Th${queuetype}.q"
 
 # Build memory line (will add "himem" later if needed)
 memline="#\$ -l mres=$((cpu * mem))G,h_data=${mem}G,h_vmem=${vmem}G${memlinehimem}"
 
 # Create pe line (if needed)
-if [[ ! -z ${pe} ]]; then
+if [ -n "$pe" ]; then
   peline="
-#$ -pe ${pe} ${cpu}"
+#\$ -pe ${pe} ${cpu}"
 fi
 
+# Generate the job file
 cat <<EOF >"${name}.job"
 # /bin/sh
 # ----------------Parameters---------------------- #
@@ -142,7 +155,7 @@ ${moduleline}
 #
 # ----------------Your Commands------------------- #
 #
-echo + \`date\` job \$JOB_NAME started in \$QUEUE with jobID=\$JOB_ID on \$HOSTNAME
+echo + \$(date) job \$JOB_NAME started in \$QUEUE with jobID=\$JOB_ID on \$HOSTNAME
 echo + NSLOTS = \$NSLOTS
 ${machines}
 #
@@ -150,13 +163,14 @@ ${machines}
 # Type your commands here
 
 #
-echo = \`date\` job \$JOB_NAME done
+echo = \$(date) job \$JOB_NAME done
 EOF
 
+# Display job details
 echo
 echo "Queue: ${queue}"
 echo "Memory: ${memline}"
-if [[ ! -z ${peline} ]]; then
+if [ -n "$peline" ]; then
   echo "PE: ${peline}"
 fi
 echo
@@ -164,6 +178,19 @@ echo "---------Contents of ${name}.job---------"
 echo
 cat "${name}.job"
 
+# Display command to rerun the script with the same options
+echo
+echo "To run this script again with the same options, use:"
+echo -n "$0"
+[ -n "$name" ] && echo -n " -n $name"
+[ -n "$length" ] && echo -n " -l $length"
+[ -n "$mem" ] && echo -n " -m $mem"
+[ -n "$cpu" ] && echo -n " -c $cpu"
+[ -n "$pe" ] && echo -n " -p $pe"
+[ -n "$module" ] && echo -n " -M $module"
+echo
+
 echo
 echo "Next run:  nano ${name}.job or "
 echo "           vi   ${name}.job"
+

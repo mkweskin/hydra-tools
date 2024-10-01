@@ -3,6 +3,7 @@
 # Nicknames for common dirs
 export PGK="/pool/genomics/$USER"
 export SAB="/share/apps/bioinformatics"
+export SAM="/share/apps/modulefiles"
 export SAMB="/share/apps/modulefiles/bioinformatics"
 export DG="/data/genomics"
 export DGK="/data/genomics/$USER"
@@ -20,6 +21,7 @@ export SSFKFA="$SSFK/final_analyses"
 # Aliases to go to those common dirs
 alias pgk="cd $PGK"
 alias sab="cd $SAB"
+alias sam="cd $SAM"
 alias samb="cd $SAMB"
 alias dg="cd $DG"
 alias dgk="cd $DGK"

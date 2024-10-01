@@ -1,0 +1,56 @@
+#!/bin/sh
+# This script is used to qsub a simple command without needing to create a job script.
+# Created by MPK with the assistance of ChatGPT (GPT-4) via Microsoft Copilot, September 2024
+# This version is still experimental
+
+usage() {
+  script_name=$(basename "$0")
+    cat <<EOF
+Usage: $script_name<command>
+
+Description:
+  This script is used to qsub a simple command without needing to create a job script.
+  
+Example:
+  $script_name gzip *.fastq
+
+Notes:
+  - The job will be submitted in the sThC.q queue with 4GB of h_data.
+  - STDERR and STDOUT are not logged.
+
+Options:
+  -h, --help    Show this help message and exit
+
+EOF
+    exit 1
+}
+
+# Display usage if no arguments are given or if the first argument is -h, --help, or anything else that starts with "-"
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] || [[ "$1" == -* ]]; then
+    usage
+fi
+
+# Strip non-alphabetic characters from the first argument to create the job name
+jobname=$(echo "$1" | tr -cd '[:alpha:]')
+
+# Check if jobname is empty after stripping non-alphabetic characters
+if [ -z "$jobname" ]; then
+    echo "\033[1mError:\033[0m Job name cannot be empty after stripping non-alphabetic characters from the first argument."
+    exit 1
+fi
+
+# Construct the command with double quotes around the arguments
+command="qsub -cwd -j y -o /dev/null -b y -N ${jobname} \"$@\""
+echo -e "\033[1mRun this?:\033[0m $command"
+read -p "Do you want to proceed? [Y/n] " response
+
+# Default to 'Y' if no response is given
+response=${response:-Y}
+
+# Use eval to correctly interpret the command string with quotes
+case "$response" in
+    [Yy]*) eval $command ;;
+    *) exit 0 ;;
+esac
+
+exit 0
