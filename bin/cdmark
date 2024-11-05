@@ -2,7 +2,7 @@
 if [ -f ~/.mark ]; then
   INITDIR=$(cat ~/.mark)
   if [ -d $INITDIR ]; then
-    echo "cd $INITDIR"
+    echo -e "\033[32mcd $INITDIR\033[0m"
     cd $INITDIR
     rm ~/.mark
   fi

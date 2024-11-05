@@ -9,28 +9,39 @@ module load module-verbose
 alias wqs="watch -n 7 qstat -u $USER"
 alias qs="qstat -u $USER"
 alias tp="top -u $USER"
-alias qr="qacct+ -show raw -j "
+alias qr="qacct+ -show raw"
 
-#Preffered defaults for some programs:
+# Preffered defaults for some programs:
 alias grep="grep --colour"
 alias lesss="less -S"
+
+# enable utf8 mode in tmux
+alias tmux="tmux -u"
 
 # This will expand a directory that is defined by a variable with tab completion
 # See: https://askubuntu.com/questions/41891/bash-auto-complete-for-environment-variables
 shopt -s direxpand
 
+# -- I removed this method because a simpler method is using the existing
+#    mark alias (see below).
 # My qrsh alias sets the variable PREVWD to dir where qrsh was called.
 # So, if PREVWD is set in a new shell, we should change to that directory
-alias qrsh='qrsh -v "PREVWD=$PWD"'
-if [ ! -z "$PREVWD" ]; then
-  cd "$PREVWD"
-fi
+# alias qrsh='qrsh -v "PREVWD=$PWD"'
+# if [ ! -z "$PREVWD" ]; then
+#   cd "$PREVWD"
+# fi
 
 # A system I use to go to a designated directory when a new shell starts
 # `mark` writes the current directory to a hidden file in the home directory.
 # If that file exists, a new interactive session goes to that directory.
 alias mark="pwd>~/.mark"
 [ -f ~/.mark ] && source ~/hydra-tools/bin/cdmark
+
+# When starting qlogin or qrsh, run the mark alias first so when
+# the new shell is started, you're redirected to your previous directory.
+alias qlogin="mark; qlogin"
+alias qrsh="mark; qrsh"
+
 
 # `tree` is using basic ascii characters without this option added
 export TREE_CHARSET=utf8
