@@ -1,5 +1,5 @@
 #!/bin/sh
-HYDRA_TOOLS_BASE=~/hydra-tools
+HYDRA_TOOLS_BASE="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 LIB=$HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou
 source $LIB || lib_error=TRUE
 install_base=/share/apps/bioinformatics
@@ -21,24 +21,24 @@ checkfile $SABPERMS || exit 1
 # Where your envs are located, The new env will be created in here
 install_base=/share/apps/bioinformatics
 
-checkwhich mamba && MAMBA=mamba
+checkwhich mamba 2&>/dev/null && MAMBA=mamba
 
 if [ -z $MAMBA ]; then
   echo "WARNING: mamba was not found in your path, trying conda (but conda is so much slower!)"
-  checkwhich conda && MAMBA=conda
+  checkwhich conda 2&>/dev/null && MAMBA=conda
     if [ -z $MAMBA ]; then
-      echo "ERROR: neither mamba or conda were found in your path. Please fix this by loading tools/mamba (or tools/conda)"
+      echo "ERROR: neither mamba or conda were found in your path. Please fix by loading tools/mamba (or tools/conda)"
       exit 1
     fi
+else
+  echo "INFO: $MAMBA found in your path. Checking if it's configured."
 fi
 
-if [ -z $CONDA_PREFIX ]; then
-  echo "Attempting to run start-$MAMBA"
-  start-$MAMBA
-  if [ -z $CONDA_PREFIX ]; then
-    echo "ERROR: Attempted to run start-$MAMBA to initialize the $MAMBA environment, but it failed"
-    exit 1
-  fi
+if checkwhich __mamba_exe 2&>/dev/null && checkwhich __conda_exe >2&>/dev/null; then
+  echo "ERROR: $MAMBA does not appear to be fully configured. If you're using the tools/$MAMBA module, make sure to run \"start-$MAMBA\" before starting this program."
+  exit 1
+else
+  echo "INFO: $MAMBA appears to be configured, proceeding."
 fi
 
 function usage
@@ -109,9 +109,10 @@ checkvar PROGRAM || usage
 if [ -z $VERSION ]; then
   # find latest version
   echo "Searching for the latest version of $PROGRAM in $CHANNEL..."
-  $MAMBA search $CHANNEL::$PROGRAM 2>/tmp/$PROGRAM.out >/tmp/search.$$ || search_error=TRUE
-  VERSION=$(tail -n 1 /tmp/search.$$ | awk '{print $2}')
+  $MAMBA search --json $CHANNEL::$PROGRAM 2>/tmp/$PROGRAM.out >/tmp/search.$$ || search_error=TRUE
+  VERSION=$(grep \"version\" /tmp/search.$$ | tail -n 1 | awk '{print $2}' | sed 's/"//g')
   rm -f /tmp/search.$$
+  echo "Latest version found: $VERSION"
 fi
 
 # If the install directory name wasn't specified, it's the conda name

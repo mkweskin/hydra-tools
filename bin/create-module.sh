@@ -1,5 +1,5 @@
 #!/bin/sh
-HYDRA_TOOLS_BASE=~/hydra-tools
+HYDRA_TOOLS_BASE="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 source $HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou || exit 1
 
 ###
