@@ -2,33 +2,36 @@
 HYDRA_TOOLS_BASE="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 LIB=$HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou
 source $LIB || lib_error=TRUE
-install_base=/share/apps/bioinformatics
 
-if [ ! -z $lib_error ]; then
+# Capture how the program was invoked. This will be output if there's an error.
+ORIG_CMD="$0"
+if [ "$#" -gt 0 ]; then
+    # Append each original argument, preserving spaces
+    for arg in "$@"; do
+        ORIG_CMD="$ORIG_CMD $arg"
+    done
+fi
+
+if [ ! -z "$lib_error" ]; then
   echo "ERROR: could not find $LIB. This file contains required functions needed for this script."
 fi
 
-checkdir $install_base || exit 1
-
 # Program to create modules
 CREATEMODULE="$HYDRA_TOOLS_BASE/bin/create-module.sh"
-checkfile $CREATEMODULE || exit 1
+checkfile $CREATEMODULE || die
 
 # Program to change permissions on install dir
 SABPERMS="$HYDRA_TOOLS_BASE/bin/sab_perms.sh"
-checkfile $SABPERMS || exit 1
-
-# Where your envs are located, The new env will be created in here
-install_base=/share/apps/bioinformatics
+checkfile $SABPERMS || die
 
 checkwhich mamba 2&>/dev/null && MAMBA=mamba
 
-if [ -z $MAMBA ]; then
+if [ -z "$MAMBA" ]; then
   echo "WARNING: mamba was not found in your path, trying conda (but conda is so much slower!)"
   checkwhich conda 2&>/dev/null && MAMBA=conda
-    if [ -z $MAMBA ]; then
+    if [ -z "$MAMBA" ]; then
       echo "ERROR: neither mamba or conda were found in your path. Please fix by loading tools/mamba (or tools/conda)"
-      exit 1
+      die
     fi
 else
   echo "INFO: $MAMBA found in your path. Checking if it's configured."
@@ -36,7 +39,7 @@ fi
 
 if checkwhich __mamba_exe 2&>/dev/null && checkwhich __conda_exe >2&>/dev/null; then
   echo "ERROR: $MAMBA does not appear to be fully configured. If you're using the tools/$MAMBA module, make sure to run \"start-$MAMBA\" before starting this program."
-  exit 1
+  die
 else
   echo "INFO: $MAMBA appears to be configured, proceeding."
 fi
@@ -61,6 +64,8 @@ Usage: $0
                           name. Use this to specify the name used on Hydra.
                           E.g: bioperl is called perl-bioperl on bioconda.
                           You would use -p perl-bioperl and -d bioperl. (OPTIONAL)
+  -a APPS_DIR             The parent directory to install in.
+                              (default is '/share/apps/bioinformatics') 
   -C                      Confirm conda packages before installing
 
 Example:
@@ -68,11 +73,11 @@ $0 -p mitofinder
     Installs the most recent version of mitofinder available on conda.
     Then creates a module for that version.
 EOF
-exit 1
+die
 }
 
 # Get options
-while getopts "p:v:u:c:d:fC" option; do
+while getopts "p:v:u:c:d:a:fC" option; do
     case "${option}" in
         p)
             PROGRAM=${OPTARG}
@@ -92,6 +97,9 @@ while getopts "p:v:u:c:d:fC" option; do
         d)
             INSTALLDIR=${OPTARG}
             ;;
+        a)
+            INSTALLBASE=${OPTARG}
+            ;;
         C)
             CONFIRM=TRUE
             ;;
@@ -104,9 +112,12 @@ shift $((OPTIND-1))
 
 checkvar PROGRAM || usage
 
-[ -z $CHANNEL ] && CHANNEL=bioconda
+[ -z "$CHANNEL" ] && CHANNEL=bioconda
 
-if [ -z $VERSION ]; then
+[ -z "$INSTALLBASE" ] && INSTALLBASE=/share/apps/bioinformatics
+checkdir $INSTALLBASE || die
+
+if [ -z "$VERSION" ]; then
   # find latest version
   echo "Searching for the latest version of $PROGRAM in $CHANNEL..."
   $MAMBA search --json $CHANNEL::$PROGRAM 2>/tmp/$PROGRAM.out >/tmp/search.$$ || search_error=TRUE
@@ -116,37 +127,37 @@ if [ -z $VERSION ]; then
 fi
 
 # If the install directory name wasn't specified, it's the conda name
-if [ -z $INSTALLDIR ]; then
+if [ -z "$INSTALLDIR" ]; then
   INSTALLDIR=$PROGRAM
 fi
 
 # If -C was specified, have conda ask if the packages should be installed
-if [ -z $CONFIRM ]; then
+if [ -z "$CONFIRM" ]; then
   CONFIRM="-y"
 else
   unset CONFIRM
 fi
 
 $MAMBA search $CHANNEL::$PROGRAM=$VERSION 2>/tmp/$PROGRAM.out >/tmp/search.$$ || search_error=TRUE
-if [ ! -z $search_error ]; then
+if [ ! -z "$search_error" ]; then
   echo "  ERROR: There was an error with finding $PROGRAM $VERSION in $CHANNEL."
   echo "         View the error log here: /tmp/$PROGRAM.out"
   rm -f /tmp/search.$$
-  exit 1
+  die
 fi
 rm /tmp/$PROGRAM.out
 
 echo "  found $VERSION."
 
-env_dir=$install_base/$INSTALLDIR/$VERSION
+env_dir=$INSTALLBASE/$INSTALLDIR/$VERSION
 
-# exit if there's already a directory in the destination
+# dief there's already a directory in the destination
 if [ -d $env_dir ]; then
-  if [ -z $FORCE ]; then
+  if [ -z "$FORCE" ]; then
     echo "ERROR: the destination directory already exists."
     echo "  $env_dir"
     echo "Remove it and re-run this program or use the -f to overwite automatically"
-    exit 1
+    die
   else
     # check if this is a conda/mamba env dir
     # I'm saying if there's a conda-meta dir, it's conda installed
@@ -169,10 +180,10 @@ echo $MAMBACOMMAND
 
 eval "$MAMBACOMMAND 2>/tmp/$PROGRAM.out || create_error=TRUE"
 
-if [ ! -z $create_error ]; then
+if [ ! -z "$create_error" ]; then
   echo "ERROR: There was an error when creating the environment"
   echo "       View the error log here: /tmp/$PROGRAM.out"
-  exit 1
+  die
 fi
 rm /tmp/$PROGRAM.out
 
@@ -184,7 +195,7 @@ JSON="$env_dir/conda-meta/$PROGRAM-$VERSION-*.json"
 if [ ! -f $JSON ]; then
   echo "ERROR: something went wrong. The file $env_dir/conda-meta/$PROGRAM-$VERSION-*.json was expected, but not found."
   echo "  The version that was expected was $VERSION, perhaps a different version was installed?"
-  exit 1
+  die
 fi
 
 echo "Executables now available for $PROGRAM:"
@@ -192,15 +203,18 @@ echo "Executables now available for $PROGRAM:"
 # grep the focal program's json for lines that start with bin/ but don't contain any other /'s (if there's >1 /, then it could be something installed in a subdirectory
 #grep -E '^ *.\"bin/[^/]+\"' $env_dir/conda-meta/$PROGRAM-$VERSION-*.json | sed -r -e 's/^ *"bin\///' -e 's/\",?$//' | column -c 67 >/tmp/executables.$$
 
-echo "Setting permissions for $install_base/$PROGRAM..."
-$SABPERMS $install_base/$PROGRAM
+echo "Setting permissions for $INSTALLBASE/$PROGRAM..."
+$SABPERMS $INSTALLBASE/$PROGRAM
 
 echo "creating module..."
 
 # format the url tag, if url was given
 [ ! -z "$URL" ] && URL="-u $URL"
 
-$CREATEMODULE -p $INSTALLDIR -v $VERSION "$URL" -j $JSON $FORCE 
+# Create the module location based on $INSTALLBASE
+MODULEBASE="$(printf "%s" "$INSTALLBASE" | sed 's|^/share/apps|/share/apps/modules|')"
+
+$CREATEMODULE -p $INSTALLDIR -v $VERSION "$URL" -m $MODULEBASE -j $JSON $FORCE 
 # rm /tmp/executables.$$
 
-exit 0
+exit $?

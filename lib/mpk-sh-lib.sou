@@ -52,3 +52,10 @@ function AbsFromRel {
     fi
 }
 
+function die() {
+    # exits the script on error.
+    # outputs how the script was invoked and exits with code 1 (unless another code is given).
+    exit_code="${1:-1}"
+    [ -n "$ORIG_CMD" ] && ScriptLogging "Script invoked as: $ORIG_CMD" >&2
+    exit "$exit_code"
+}

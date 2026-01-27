@@ -1,6 +1,16 @@
 #!/bin/sh
 HYDRA_TOOLS_BASE="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-source $HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou || exit 1
+LIB=$HYDRA_TOOLS_BASE/lib/mpk-sh-lib.sou
+source $LIB || lib_error=TRUE
+
+# Capture how the program was invoked. This will be output if there's an error.
+ORIG_CMD="$0"
+if [ "$#" -gt 0 ]; then
+    # Append each original argument, preserving spaces
+    for arg in "$@"; do
+        ORIG_CMD="$ORIG_CMD $arg"
+    done
+fi
 
 ###
 # Usage message and process command line options
@@ -20,6 +30,8 @@ Usage: $0
                           to use the files lsited in bin for the list of 
                           executables. Otherwise everything in the added bin 
                           will be used. (OPTIONAL)
+  -m MOD_DIR             The parent directory to install in.
+                              (default is '/share/apps/modules/bioinformatics') 
   -f                      Force the creation:
                              - Overwrites exsiting module file
                              - Doesn't check for expected bin directory
@@ -30,7 +42,7 @@ $0 -p bayescan -g 10.1.0 -v 2.1 -u "http://cmpg.unibe.ch/software/BayeScan/"
     /share/apps/bioinformatics/bayescan/2.1/bin
     and loads the gcc/10.1.0 module
 EOF
-exit 1
+die
 }
 
 while getopts "p:m:v:u:g:j:f" option; do
@@ -50,6 +62,9 @@ while getopts "p:m:v:u:g:j:f" option; do
         j)
             JSONFILE=${OPTARG}
             ;;
+        m)
+            MODDIR=${OPTARG}
+            ;;
         f)
             FORCE=TRUE
             ;;
@@ -64,6 +79,9 @@ TEMPLATE=$HYDRA_TOOLS_BASE/share/MODULE_TEMPLATE
 MODDIR=/share/apps/modulefiles/bioinformatics
 BASEMOD=$(basename $MODDIR)
 DATE=$(date)
+[ -z "$MODDIR" ] && MODDIR=/share/apps/modulefiles/bioinformatics
+checkdir $MODDIR || die
+
 MODFILE=$MODDIR/$PROGRAM/$VERSION
 
 
@@ -71,12 +89,12 @@ for var in PROGRAM VERSION TEMPLATE MODDIR DATE; do
   checkvar $var || usage
 done 
 
-if [ ! -z $JSONFILE ]; then
-  checkfile $JSONFILE || exit
+if [ ! -z "$JSONFILE" ]; then
+  checkfile $JSONFILE || die
 fi
 
-checkfile $TEMPLATE || exit 1
-checkdir $MODDIR || exit 1
+checkfile $TEMPLATE || die
+checkdir $MODDIR || die
 
 # prepare a sed command for GCCVER
 # Either set the gcc version (if specified) OR
@@ -88,25 +106,25 @@ else
 fi
 
 # check that there ISN'T a file with the expected name already
-if [ -f $MODFILE ] && [ -z $FORCE ]; then
+if [ -f $MODFILE ] && [ -z "$FORCE" ]; then
   ScriptLogging "ERROR: There is an existing module: $MODFILE To recreate it, please delete it first"
-  exit 1
+  die
 fi
 
 BINDIR=/share/apps/bioinformatics/$PROGRAM/$VERSION/bin
 # check that the expected install directory exists
 ScriptLogging "The new module file will be: $BASEMOD/$PROGRAM/$VERSION"
 ScriptLogging "It will add this directory to the PATH: $BINDIR"
-if [ -z $FORCE ]; then
+if [ -z "$FORCE" ]; then
   ScriptLogging "Checking if that exists..."
-  checkdir $BINDIR || exit 1
+  checkdir $BINDIR || die
   ScriptLogging "   ...found it"
 fi
 
 
 
 # Get the list of executables to include
-if [ -z $JSONFILE ]; then
+if [ -z "$JSONFILE" ]; then
   find $BINDIR -maxdepth 1 -executable -type f -or -type l | sed "s~$BINDIR/~~" | column -c 67 > /tmp/executables
 else
   # grep the focal program's json for lines that start with bin/ but don't contain any other /'s (if there's >1 /, then it could be something installed in a subdirectory
@@ -119,7 +137,7 @@ if [ ! -d $MODDIR/$PROGRAM ]; then
   chgrp bioinformatics $MODDIR/$PROGRAM
   chmod g+rwx,a+rx $MODDIR/$PROGRAM
 fi
-checkdir $MODDIR/$PROGRAM || exit 1
+checkdir $MODDIR/$PROGRAM || die
 
 # Modify the TEMPLATE and use as the new 
 sed "s/PROGRAM/$PROGRAM/; s/VERSION/$VERSION/; $GCCVERSED s/DATE/$DATE/; s!URL!$URL!" $TEMPLATE >$MODFILE
@@ -127,7 +145,7 @@ awk '/EXECUTABLES/ {system("cat /tmp/executables")} !/EXECUTABLES/' $MODFILE > $
 mv $MODFILE.tmp $MODFILE
 #rm -f /tmp/executables.$$ 2>/dev/null
 
-checkfile $MODFILE || exit 1
+checkfile $MODFILE || die
 chgrp bioinformatics $MODFILE
 chmod g+rw,a+r $MODFILE
 
