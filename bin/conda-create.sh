@@ -174,7 +174,7 @@ echo "Creating new env in: $env_dir"
 # Install the package into the designated directory
 # Note that the version ISN'T specified here. I want mamba to choose the version again.
 # You can add -q for less output
-MAMBACOMMAND="$MAMBA create $CONFIRM -c conda-forge -c bioconda --override-channels -p $env_dir $CHANNEL::$PROGRAM=$VERSION"
+MAMBACOMMAND="$MAMBA create $CONFIRM -c conda-forge -c bioconda --override-channels --strict-channel-priority -p $env_dir $CHANNEL::$PROGRAM=$VERSION"
 echo "Running:"
 echo $MAMBACOMMAND
 
